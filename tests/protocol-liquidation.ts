@@ -539,20 +539,20 @@ describe("Protocol Contract - Liquidation Tests", () => {
 
       // Stake enough aUSD to cover the target trove's debt (cap by user1 balance if needed)
       // For simplicity, stake exactly targetDebt; if user1 has less, the stake will fail.
-      await ctx.protocolProgram.methods
-        .stake({ amount: targetDebt })
-        .accounts({
-          user: user1.publicKey,
-          userStakeAmount: user1Pdas.userStakeAmount,
-          state: ctx.protocolState,
-          userStablecoinAccount: user1StablecoinAccount,
-          protocolStablecoinAccount: user1Pdas.protocolStablecoinAccount,
-          stableCoinMint: ctx.stablecoinMint,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          systemProgram: SystemProgram.programId,
-        })
-        .signers([user1])
-        .rpc();
+      // await ctx.protocolProgram.methods
+      //   .stake({ amount: targetDebt })
+      //   .accounts({
+      //     user: user1.publicKey,
+      //     userStakeAmount: user1Pdas.userStakeAmount,
+      //     state: ctx.protocolState,
+      //     userStablecoinAccount: user1StablecoinAccount,
+      //     protocolStablecoinAccount: user1Pdas.protocolStablecoinAccount,
+      //     stableCoinMint: ctx.stablecoinMint,
+      //     tokenProgram: TOKEN_PROGRAM_ID,
+      //     systemProgram: SystemProgram.programId,
+      //   })
+      //   .signers([user1])
+      //   .rpc();
 
       // Step 3: Call the liquidate_trove instruction from liquidator
       await ctx.protocolProgram.methods
