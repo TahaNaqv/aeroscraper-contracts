@@ -602,60 +602,38 @@ describe("Protocol Contract - Liquidation Tests", () => {
       );
 
       // Step 3: Call the liquidate_trove instruction from liquidator
-      try {
-        await ctx.protocolProgram.methods
-          .liquidateTrove({
-            targetUser: targetOwner,
-            collateralDenom: "SOL",
-          })
-          .accounts({
-            liquidator: liquidator.publicKey,
-            state: state,
-            stableCoinMint: stableCoinMint,
-            protocolStablecoinVault: protocolStablecoinVault,
-            protocolCollateralVault: protocolCollateralVault,
-            totalCollateralAmount: totalCollateralAmountPda,
+      await ctx.protocolProgram.methods
+        .liquidateTrove({
+          targetUser: targetOwner,
+          collateralDenom: "SOL",
+        })
+        .accounts({
+          liquidator: liquidator.publicKey,
+          state: state,
+          stableCoinMint: stableCoinMint,
+          protocolStablecoinVault: protocolStablecoinVault,
+          protocolCollateralVault: protocolCollateralVault,
+          totalCollateralAmount: totalCollateralAmountPda,
 
-            userDebtAmount: pdas.userDebtAmount,
-            userCollateralAmount: pdas.userCollateralAmount,
-            liquidityThreshold: pdas.liquidityThreshold,
-            userCollateralTokenAccount: userCollateralTokenAccount,
+          userDebtAmount: pdas.userDebtAmount,
+          userCollateralAmount: pdas.userCollateralAmount,
+          liquidityThreshold: pdas.liquidityThreshold,
+          userCollateralTokenAccount: userCollateralTokenAccount,
 
-            oracleProgram: oracleProgramId,
-            oracleState: oracleState,
-            pythPriceAccount: pythPriceAccount,
-            clock: clock,
+          oracleProgram: oracleProgramId,
+          oracleState: oracleState,
+          pythPriceAccount: pythPriceAccount,
+          clock: clock,
 
-            tokenProgram: TOKEN_PROGRAM_ID,
-            systemProgram: SystemProgram.programId,
-          } as any)
-          .remainingAccounts([
-            {
-              pubkey: stabilityPoolSnapshotPda,
-              isSigner: false,
-              isWritable: true,
-            },
-          ])
-          .signers([liquidator])
-          .rpc();
+          stabilityPoolSnapshot: stabilityPoolSnapshotPda,
 
-        console.log("  ✅ Liquidation transaction completed!");
-      } catch (err: any) {
-        const code = err?.error?.errorCode?.code ?? err?.error?.errorCode?.number;
-        if (code === "AccountDidNotSerialize" || code === 3004) {
-          console.warn(
-            "  ⚠️ Stability pool snapshot account is missing or uninitialized on devnet; skipping liquidation assertions."
-          );
-          console.warn(
-            "    • PDA:",
-            stabilityPoolSnapshotPda.toBase58()
-          );
-          console.warn(
-            "    • Please initialize the stability pool snapshot PDA before re-running this test."
-          );
-        }
-        throw err;
-      }
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        } as any)
+        .signers([liquidator])
+        .rpc();
+
+      console.log("  ✅ Liquidation transaction completed!");
 
       // Step 4: Check trove's accounts are zero
       const userDebt = await ctx.protocolProgram.account.userDebtAmount.fetch(pdas.userDebtAmount);
