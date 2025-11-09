@@ -583,7 +583,7 @@ describe("Protocol Contract - Liquidation Tests", () => {
           userStablecoinAccount: user1StablecoinAccount,
           feeAddress1TokenAccount: ctx.feeAddress1TokenAccount,
           feeAddress2TokenAccount: ctx.feeAddress2TokenAccount,
-          feesState: ctx.feesState,
+          feeState: ctx.feeState,
           oracleProgram: ctx.oracleProgram.programId,
           oracleState: ctx.oracleState,
           pythPriceAccount: pythPriceAccount,
