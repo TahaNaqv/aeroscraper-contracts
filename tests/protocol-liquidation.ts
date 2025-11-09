@@ -514,6 +514,7 @@ describe("Protocol Contract - Liquidation Tests", () => {
 
       // In tests/protocol-liquidation.ts, before .liquidateTrove(...)
       const targetDebt = (await ctx.protocolProgram.account.userDebtAmount.fetch(pdas.userDebtAmount)).amount;
+      console.log("targetDebt", targetDebt);
 
       // Prepare a staker (user1) and ensure they have aUSD by opening a small trove first
       const { user1 } = loadTestUsers();
