@@ -578,24 +578,29 @@ describe("Protocol Contract - Liquidation Tests", () => {
         })
         .accounts({
           user: user1.publicKey,
-          state: ctx.protocolState,
           userDebtAmount: user1Pdas.userDebtAmount,
-          userCollateralAmount: user1Pdas.userCollateralAmount,
           liquidityThreshold: user1Pdas.liquidityThreshold,
-          totalCollateralAmount: user1Pdas.totalCollateralAmount,
+          state: ctx.protocolState,
+          userStablecoinAccount: user1StablecoinAccount,
           stableCoinMint: ctx.stablecoinMint,
           protocolStablecoinAccount: user1Pdas.protocolStablecoinAccount,
-          userStablecoinAccount: user1StablecoinAccount,
-          feeAddress1TokenAccount: ctx.feeAddress1TokenAccount,
-          feeAddress2TokenAccount: ctx.feeAddress2TokenAccount,
-          feeState: ctx.feeState,
+          userCollateralAmount: user1Pdas.userCollateralAmount,
+          userCollateralAccount: user1CollateralAccount,
+          collateralMint: ctx.collateralMint,
+          protocolCollateralAccount: user1Pdas.protocolCollateralAccount,
+          totalCollateralAmount: user1Pdas.totalCollateralAmount,
           oracleProgram: ctx.oracleProgram.programId,
           oracleState: ctx.oracleState,
           pythPriceAccount: pythPriceAccount,
           clock: clock,
+          feesProgram: ctx.feesProgram.programId,
+          feesState: ctx.feesState,
+          stabilityPoolTokenAccount: ctx.stabilityPoolTokenAccount,
+          feeAddress1TokenAccount: ctx.feeAddress1TokenAccount,
+          feeAddress2TokenAccount: ctx.feeAddress2TokenAccount,
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
-        })
+        } as any)
         .signers([user1])
         .rpc();
       console.log("  ✅ Borrowed 5.0 aUSD for user1");
