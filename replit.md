@@ -3,13 +3,48 @@
 ## Overview
 The Aerospacer Protocol is a decentralized lending platform on Solana, enabling Collateralized Debt Positions (CDPs), aUSD stablecoin minting, and automated liquidation. It integrates with Pyth Network for price feeds and features a robust fee distribution mechanism. The project aims to deliver a secure, efficient, and scalable on-chain lending solution within the Solana ecosystem, establishing a new primitive for decentralized finance.
 
+## Replit Environment Setup (Completed)
+
+**Date:** November 9, 2025  
+**Status:** ✅ Ready for Development
+
+### Installed Tools & Versions
+- **Rust & Cargo:** v1.88.0
+- **Solana CLI:** v1.18.26
+- **Anchor CLI:** v0.31.1 (installed via avm)
+- **Node.js:** v20.19.3
+- **Solana BPF Tools:** v1.18.26
+
+### Environment Configuration
+- **Environment file:** `.envrc` created with PATH configuration
+- **Solana Wallet:** Generated at `~/.config/solana/id.json`
+- **Workflow:** "Project Info" displays environment status and quick commands
+
+### Quick Start Commands
+To use Anchor and other tools, make sure to source the environment:
+```bash
+source /home/runner/workspace/.envrc
+```
+
+Then you can run:
+- **Build programs:** `anchor build` (first build takes 5-10 minutes)
+- **Run tests:** `anchor test`
+- **Quick syntax check:** `cargo check`
+- **Deploy to devnet:** `anchor deploy --provider.cluster devnet`
+
+### Important Notes
+- The `.envrc` file sets up the PATH to include Anchor CLI and cargo binaries
+- First build compilation takes significant time due to Solana BPF compilation
+- Subsequent builds use incremental compilation and are much faster
+- See the "Project Info" workflow output for additional helpful information
+
 ## User Preferences
 *This section will be updated as you work with the project*
 
 ## System Architecture
 
 **Core Programs:**
-The project utilizes Anchor v0.28.0 in Rust and comprises three main Solana smart contract programs:
+The project utilizes Anchor v0.31.1 in Rust and comprises three main Solana smart contract programs:
 1.  **aerospacer-protocol**: Manages core lending logic, including CDPs, stablecoin minting, and liquidation.
 2.  **aerospacer-oracle**: Handles price feed management, primarily integrating with the Pyth Network.
 3.  **aerospacer-fees**: Manages fee collection and distribution.
