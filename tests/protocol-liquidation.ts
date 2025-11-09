@@ -516,44 +516,102 @@ describe("Protocol Contract - Liquidation Tests", () => {
       const targetDebt = (await ctx.protocolProgram.account.userDebtAmount.fetch(pdas.userDebtAmount)).amount;
       console.log("targetDebt", targetDebt);
 
-      // Prepare a staker (user1) and ensure they have aUSD by opening a small trove first
+      // Prepare a staker (user1) - user1 already has a trove, so we'll add collateral and borrow more aUSD
       const { user1 } = loadTestUsers();
-
-      // Open a small trove for user1 to mint aUSD (meets minimums; adjust if needed for devnet)
-      // 2 aUSD (18 decimals) and 0.3 SOL (9 decimals) as collateral
-      // await openTroveForUser(
-      //   ctx,
-      //   user1,
-      //   new BN("300000000"),                // 0.300000000 SOL
-      //   new BN("2000000000000000000"),     // 2.0 aUSD
-      //   "SOL"
-      // );
-
-      // Derive PDAs for user1 stake and protocol vault
+      
+      // Derive PDAs for user1
       const user1Pdas = derivePDAs("SOL", user1.publicKey, ctx.protocolProgram.programId);
 
+      // User1's collateral token account
+      const user1CollateralAccount = await getAssociatedTokenAddress(
+        ctx.collateralMint,
+        user1.publicKey
+      );
+
+      console.log("  Step 2.1: Adding collateral to user1's trove...");
+      // Add 1.0 SOL collateral to user1's existing trove
+      const additionalCollateral = new BN("1000000000"); // 1.0 SOL (9 decimals)
+      await ctx.protocolProgram.methods
+        .addCollateral({
+          amount: additionalCollateral,
+          collateralDenom: "SOL",
+        })
+        .accounts({
+          user: user1.publicKey,
+          state: ctx.protocolState,
+          userCollateralAmount: user1Pdas.userCollateralAmount,
+          totalCollateralAmount: user1Pdas.totalCollateralAmount,
+          userCollateralTokenAccount: user1CollateralAccount,
+          protocolCollateralVault: user1Pdas.protocolCollateralAccount,
+          liquidityThreshold: user1Pdas.liquidityThreshold,
+          userDebtAmount: user1Pdas.userDebtAmount,
+          oracleProgram: ctx.oracleProgram.programId,
+          oracleState: ctx.oracleState,
+          pythPriceAccount: pythPriceAccount,
+          clock: clock,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        } as any)
+        .signers([user1])
+        .rpc();
+      console.log("  ✅ Added 1.0 SOL collateral to user1's trove");
+
+      console.log("  Step 2.2: Borrowing aUSD from user1's trove...");
+      // Borrow 5.0 aUSD to ensure we have enough to stake
+      const borrowAmount = new BN("5000000000000000000"); // 5.0 aUSD (18 decimals)
+      
       // user1's aUSD ATA
       const user1StablecoinAccount = await getAssociatedTokenAddress(
         ctx.stablecoinMint,
         user1.publicKey
       );
 
-      // Stake enough aUSD to cover the target trove's debt (cap by user1 balance if needed)
-      // For simplicity, stake exactly targetDebt; if user1 has less, the stake will fail.
-      // await ctx.protocolProgram.methods
-      //   .stake({ amount: targetDebt })
-      //   .accounts({
-      //     user: user1.publicKey,
-      //     userStakeAmount: user1Pdas.userStakeAmount,
-      //     state: ctx.protocolState,
-      //     userStablecoinAccount: user1StablecoinAccount,
-      //     protocolStablecoinAccount: user1Pdas.protocolStablecoinAccount,
-      //     stableCoinMint: ctx.stablecoinMint,
-      //     tokenProgram: TOKEN_PROGRAM_ID,
-      //     systemProgram: SystemProgram.programId,
-      //   })
-      //   .signers([user1])
-      //   .rpc();
+      await ctx.protocolProgram.methods
+        .borrowLoan({
+          amount: borrowAmount,
+          collateralDenom: "SOL",
+        })
+        .accounts({
+          user: user1.publicKey,
+          state: ctx.protocolState,
+          userDebtAmount: user1Pdas.userDebtAmount,
+          userCollateralAmount: user1Pdas.userCollateralAmount,
+          liquidityThreshold: user1Pdas.liquidityThreshold,
+          totalCollateralAmount: user1Pdas.totalCollateralAmount,
+          stableCoinMint: ctx.stablecoinMint,
+          protocolStablecoinAccount: user1Pdas.protocolStablecoinAccount,
+          userStablecoinAccount: user1StablecoinAccount,
+          feeAddress1TokenAccount: ctx.feeAddress1TokenAccount,
+          feeAddress2TokenAccount: ctx.feeAddress2TokenAccount,
+          feeState: ctx.feeState,
+          oracleProgram: ctx.oracleProgram.programId,
+          oracleState: ctx.oracleState,
+          pythPriceAccount: pythPriceAccount,
+          clock: clock,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        } as any)
+        .signers([user1])
+        .rpc();
+      console.log("  ✅ Borrowed 5.0 aUSD for user1");
+
+      console.log("  Step 2.3: Staking aUSD in stability pool...");
+      // Stake enough aUSD to cover the target trove's debt
+      await ctx.protocolProgram.methods
+        .stake({ amount: targetDebt })
+        .accounts({
+          user: user1.publicKey,
+          userStakeAmount: user1Pdas.userStakeAmount,
+          state: ctx.protocolState,
+          userStablecoinAccount: user1StablecoinAccount,
+          protocolStablecoinVault: user1Pdas.protocolStablecoinAccount,
+          stableCoinMint: ctx.stablecoinMint,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([user1])
+        .rpc();
+      console.log(`  ✅ Staked ${targetDebt.toString()} aUSD in stability pool`);
 
       // Derive StabilityPoolSnapshot PDA for SOL
       const [stabilityPoolSnapshotPda] = PublicKey.findProgramAddressSync(
