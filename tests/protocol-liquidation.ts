@@ -653,7 +653,6 @@ describe("Protocol Contract - Liquidation Tests", () => {
           console.warn(
             "    • Please initialize the stability pool snapshot PDA before re-running this test."
           );
-          return;
         }
         throw err;
       }
