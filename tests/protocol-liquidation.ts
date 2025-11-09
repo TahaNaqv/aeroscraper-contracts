@@ -518,7 +518,7 @@ describe("Protocol Contract - Liquidation Tests", () => {
 
       // Prepare a staker (user1) - user1 already has a trove, so we'll add collateral and borrow more aUSD
       const { user1 } = loadTestUsers();
-      
+
       // Derive PDAs for user1
       const user1Pdas = derivePDAs("SOL", user1.publicKey, ctx.protocolProgram.programId);
 
@@ -554,7 +554,7 @@ describe("Protocol Contract - Liquidation Tests", () => {
           clock: clock,
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
-        } as any)
+        })
         .signers([user1])
         .rpc();
       console.log("  ✅ Added 1.0 SOL collateral to user1's trove");
@@ -562,7 +562,7 @@ describe("Protocol Contract - Liquidation Tests", () => {
       console.log("  Step 2.2: Borrowing aUSD from user1's trove...");
       // Borrow 5.0 aUSD to ensure we have enough to stake
       const borrowAmount = new BN("5000000000000000000"); // 5.0 aUSD (18 decimals)
-      
+
       // user1's aUSD ATA
       const user1StablecoinAccount = await getAssociatedTokenAddress(
         ctx.stablecoinMint,
@@ -595,7 +595,7 @@ describe("Protocol Contract - Liquidation Tests", () => {
           clock: clock,
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
-        } as any)
+        })
         .signers([user1])
         .rpc();
       console.log("  ✅ Borrowed 5.0 aUSD for user1");
