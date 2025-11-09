@@ -535,16 +535,19 @@ describe("Protocol Contract - Liquidation Tests", () => {
         .addCollateral({
           amount: additionalCollateral,
           collateralDenom: "SOL",
+          prevNodeId: null,
+          nextNodeId: null,
         })
         .accounts({
           user: user1.publicKey,
           state: ctx.protocolState,
-          userCollateralAmount: user1Pdas.userCollateralAmount,
-          totalCollateralAmount: user1Pdas.totalCollateralAmount,
-          userCollateralTokenAccount: user1CollateralAccount,
-          protocolCollateralVault: user1Pdas.protocolCollateralAccount,
-          liquidityThreshold: user1Pdas.liquidityThreshold,
           userDebtAmount: user1Pdas.userDebtAmount,
+          userCollateralAmount: user1Pdas.userCollateralAmount,
+          liquidityThreshold: user1Pdas.liquidityThreshold,
+          userCollateralAccount: user1CollateralAccount,
+          collateralMint: ctx.collateralMint,
+          protocolCollateralAccount: user1Pdas.protocolCollateralAccount,
+          totalCollateralAmount: user1Pdas.totalCollateralAmount,
           oracleProgram: ctx.oracleProgram.programId,
           oracleState: ctx.oracleState,
           pythPriceAccount: pythPriceAccount,
@@ -568,8 +571,10 @@ describe("Protocol Contract - Liquidation Tests", () => {
 
       await ctx.protocolProgram.methods
         .borrowLoan({
-          amount: borrowAmount,
+          loanAmount: borrowAmount,
           collateralDenom: "SOL",
+          prevNodeId: null,
+          nextNodeId: null,
         })
         .accounts({
           user: user1.publicKey,
