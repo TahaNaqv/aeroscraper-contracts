@@ -40,6 +40,27 @@ Then you can run:
 
 ## Recent Changes
 
+### November 10, 2025 - Query Liquidatable Troves Security Hardening
+**Fixed Critical Fake Account Injection Vulnerability:**
+- **Issue**: query_liquidatable_troves trusted caller-supplied accounts without PDA or ownership verification
+- **Attack Vector**: Attackers could pass fabricated accounts with arbitrary ICRs to manipulate liquidation queries
+- **Fix**: Added comprehensive security validations:
+  1. Program ownership verification for all accounts (UserDebtAmount, UserCollateralAmount, LiquidityThreshold)
+  2. PDA verification via verify_liquidity_threshold_pda() to ensure accounts are real
+  3. Uses crate::ID for cross-program invocation (CPI) compatibility
+- **Impact**: Prevents fake account injection attacks; matches security posture of borrow_loan/repay_loan/liquidate_troves
+
+**Fixed Documentation Mismatch:**
+- Updated comments to correctly describe triplet pattern [UserDebtAmount, UserCollateralAmount, LiquidityThreshold]
+- Removed outdated Node/LiquidityThreshold pair references
+- Added security validation notes
+
+**Production Status:** ✅ **PRODUCTION-READY**
+- Architect review confirms all security validations are complete and correct
+- Supports cross-program invocation (CPI) correctly
+- No remaining attack vectors or edge cases identified
+- Ready for production deployment
+
 ### November 10, 2025 - Stability Pool Stake/Unstake Production Fixes
 **Fixed Critical Snapshot Staleness Bug in unstake:**
 - **Issue**: unstake was not updating p_snapshot and epoch_snapshot after withdrawal, causing future compounding to use stale scale factors
