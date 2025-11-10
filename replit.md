@@ -40,6 +40,23 @@ Then you can run:
 
 ## Recent Changes
 
+### November 10, 2025 - Redeem Instruction Production Security Hardening
+**Fixed Multiple Critical Security and Economic Vulnerabilities:**
+- **Fake Account Injection**: Added comprehensive PDA and program ownership verification for all trove accounts (UserDebtAmount, UserCollateralAmount, LiquidityThreshold) using crate::ID
+- **Non-Deterministic Math**: Replaced floating-point collateral calculations with deterministic integer math using u128 checked operations
+- **Token Account Validation**: Added SPL Token ownership and trove owner verification to prevent collateral redirection attacks
+- **ICR Ordering Validation**: Implemented sorted list integrity checks to ensure redemptions target riskiest troves first (Liquity model)
+- **Redistribution Rewards**: Applied pending redistribution gains before processing each trove redemption
+- **Total Collateral PDA**: Verified total_collateral_amount is authentic using seed derivation
+- **Zero-Debt Trove Handling**: Skip troves with zero debt to prevent remaining_amount mismatch failures
+- **Zero-Collateral Payouts**: Prevent redemptions where users burn stablecoins but receive zero collateral due to floor division
+
+**Production Status:** ✅ **PRODUCTION-READY**
+- Architect review confirms all blocking economic and security issues resolved
+- Users guaranteed to receive proportional collateral for burned stablecoins
+- All math is deterministic, overflow-protected, and CPI-compatible
+- Ready for production deployment on fresh networks
+
 ### November 10, 2025 - Query Liquidatable Troves Security Hardening
 **Fixed Critical Fake Account Injection Vulnerability:**
 - **Issue**: query_liquidatable_troves trusted caller-supplied accounts without PDA or ownership verification
