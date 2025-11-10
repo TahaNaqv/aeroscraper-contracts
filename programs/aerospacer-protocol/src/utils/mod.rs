@@ -123,12 +123,30 @@ pub fn safe_div(a: u64, b: u64) -> Result<u64> {
 
 // Helper function to update total collateral amount
 pub fn update_total_collateral_from_account_info(
-    _account_info: &AccountInfo,
+    account_info: &AccountInfo,
     amount_change: i64,
 ) -> Result<()> {
-    // This would update the TotalCollateralAmount account
-    // For now, just log the change
-    msg!("Updating total collateral by: {}", amount_change);
+    use crate::state::TotalCollateralAmount;
+    
+    // Deserialize the TotalCollateralAmount account
+    let mut data = account_info.try_borrow_mut_data()?;
+    let mut total_collateral = TotalCollateralAmount::try_deserialize(&mut &data[..])?;
+    
+    // Apply the change
+    if amount_change >= 0 {
+        total_collateral.amount = total_collateral.amount
+            .checked_add(amount_change as u64)
+            .ok_or(AerospacerProtocolError::OverflowError)?;
+    } else {
+        total_collateral.amount = total_collateral.amount
+            .checked_sub(amount_change.abs() as u64)
+            .ok_or(AerospacerProtocolError::OverflowError)?;
+    }
+    
+    // Serialize back to account
+    total_collateral.try_serialize(&mut &mut data[..])?;
+    
+    msg!("Updated total collateral by: {} (new total: {})", amount_change, total_collateral.amount);
     Ok(())
 }
 
