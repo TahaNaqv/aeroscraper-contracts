@@ -116,6 +116,13 @@ impl TroveManager {
         additional_amount: u64,
         collateral_denom: String,
     ) -> Result<TroveOperationResult> {
+        // Apply pending redistribution rewards before modifying trove
+        apply_pending_rewards(
+            &mut trove_ctx.user_debt_amount,
+            &mut collateral_ctx.user_collateral_amount,
+            &collateral_ctx.total_collateral_amount,
+        )?;
+        
         // Get current trove info
         let trove_info = trove_ctx.get_trove_info()?;
         let collateral_info = collateral_ctx.get_collateral_info()?;
@@ -176,6 +183,13 @@ impl TroveManager {
         collateral_denom: String,
         bump: u8,
     ) -> Result<TroveOperationResult> {
+        // Apply pending redistribution rewards before modifying trove
+        apply_pending_rewards(
+            &mut trove_ctx.user_debt_amount,
+            &mut collateral_ctx.user_collateral_amount,
+            &collateral_ctx.total_collateral_amount,
+        )?;
+        
         // Get current trove info
         let trove_info = trove_ctx.get_trove_info()?;
         let collateral_info = collateral_ctx.get_collateral_info()?;
@@ -245,6 +259,13 @@ impl TroveManager {
         oracle_ctx: &OracleContext,
         additional_loan_amount: u64,
     ) -> Result<TroveOperationResult> {
+        // Apply pending redistribution rewards before modifying trove
+        apply_pending_rewards(
+            &mut trove_ctx.user_debt_amount,
+            &mut collateral_ctx.user_collateral_amount,
+            &collateral_ctx.total_collateral_amount,
+        )?;
+        
         // Get current trove info
         let trove_info = trove_ctx.get_trove_info()?;
         let collateral_info = collateral_ctx.get_collateral_info()?;
@@ -306,6 +327,13 @@ impl TroveManager {
         repay_amount: u64,
         bump: u8,
     ) -> Result<TroveOperationResult> {
+        // Apply pending redistribution rewards before modifying trove
+        apply_pending_rewards(
+            &mut trove_ctx.user_debt_amount,
+            &mut collateral_ctx.user_collateral_amount,
+            &collateral_ctx.total_collateral_amount,
+        )?;
+        
         // Get current trove info
         let trove_info = trove_ctx.get_trove_info()?;
         let collateral_info = collateral_ctx.get_collateral_info()?;
@@ -755,6 +783,129 @@ pub fn distribute_liquidation_gains_to_stakers(
     }
     
     msg!("Liquidation gains distribution complete (snapshot algorithm)");
+    
+    Ok(())
+}
+
+pub fn apply_pending_rewards(
+    user_debt: &mut UserDebtAmount,
+    user_collateral: &mut UserCollateralAmount,
+    total_collateral: &TotalCollateralAmount,
+) -> Result<()> {
+    let l_debt = total_collateral.l_debt;
+    let l_collateral = total_collateral.l_collateral;
+    
+    let user_l_debt_snapshot = user_debt.l_debt_snapshot;
+    let user_l_collateral_snapshot = user_collateral.l_collateral_snapshot;
+    
+    if l_debt == 0 && l_collateral == 0 {
+        return Ok(());
+    }
+    
+    let pending_debt_reward = if l_debt > user_l_debt_snapshot {
+        let l_diff = l_debt.saturating_sub(user_l_debt_snapshot);
+        let user_coll_u128 = user_collateral.amount as u128;
+        
+        let reward = user_coll_u128
+            .checked_mul(l_diff)
+            .ok_or(AerospacerProtocolError::OverflowError)?
+            .checked_div(StateAccount::SCALE_FACTOR)
+            .ok_or(AerospacerProtocolError::DivideByZeroError)?;
+        
+        if reward > u64::MAX as u128 {
+            u64::MAX
+        } else {
+            reward as u64
+        }
+    } else {
+        0
+    };
+    
+    let pending_collateral_reward = if l_collateral > user_l_collateral_snapshot {
+        let l_diff = l_collateral.saturating_sub(user_l_collateral_snapshot);
+        let user_coll_u128 = user_collateral.amount as u128;
+        
+        let reward = user_coll_u128
+            .checked_mul(l_diff)
+            .ok_or(AerospacerProtocolError::OverflowError)?
+            .checked_div(StateAccount::SCALE_FACTOR)
+            .ok_or(AerospacerProtocolError::DivideByZeroError)?;
+        
+        if reward > u64::MAX as u128 {
+            u64::MAX
+        } else {
+            reward as u64
+        }
+    } else {
+        0
+    };
+    
+    if pending_debt_reward > 0 {
+        user_debt.amount = user_debt.amount
+            .checked_add(pending_debt_reward)
+            .ok_or(AerospacerProtocolError::OverflowError)?;
+        user_debt.l_debt_snapshot = l_debt;
+        
+        msg!("Applied pending debt reward: +{} (new debt: {})", pending_debt_reward, user_debt.amount);
+    }
+    
+    if pending_collateral_reward > 0 {
+        user_collateral.amount = user_collateral.amount
+            .checked_add(pending_collateral_reward)
+            .ok_or(AerospacerProtocolError::OverflowError)?;
+        user_collateral.l_collateral_snapshot = l_collateral;
+        
+        msg!("Applied pending collateral reward: +{} (new collateral: {})", 
+             pending_collateral_reward, user_collateral.amount);
+    }
+    
+    Ok(())
+}
+
+pub fn redistribute_debt_and_collateral(
+    total_collateral: &mut TotalCollateralAmount,
+    state: &mut StateAccount,
+    debt_to_redistribute: u64,
+    collateral_to_redistribute: u64,
+) -> Result<()> {
+    let total_collateral_in_system = total_collateral.amount;
+    
+    require!(
+        total_collateral_in_system > 0,
+        AerospacerProtocolError::InvalidAmount
+    );
+    
+    msg!("Redistributing debt and collateral to active troves:");
+    msg!("  Total active collateral in system: {}", total_collateral_in_system);
+    msg!("  Debt to redistribute: {}", debt_to_redistribute);
+    msg!("  Collateral to redistribute: {}", collateral_to_redistribute);
+    
+    let debt_per_unit_staked = (debt_to_redistribute as u128)
+        .checked_mul(StateAccount::SCALE_FACTOR)
+        .ok_or(AerospacerProtocolError::OverflowError)?
+        .checked_div(total_collateral_in_system as u128)
+        .ok_or(AerospacerProtocolError::DivideByZeroError)?;
+    
+    let collateral_per_unit_staked = (collateral_to_redistribute as u128)
+        .checked_mul(StateAccount::SCALE_FACTOR)
+        .ok_or(AerospacerProtocolError::OverflowError)?
+        .checked_div(total_collateral_in_system as u128)
+        .ok_or(AerospacerProtocolError::DivideByZeroError)?;
+    
+    total_collateral.l_debt = total_collateral.l_debt
+        .checked_add(debt_per_unit_staked)
+        .ok_or(AerospacerProtocolError::OverflowError)?;
+    
+    total_collateral.l_collateral = total_collateral.l_collateral
+        .checked_add(collateral_per_unit_staked)
+        .ok_or(AerospacerProtocolError::OverflowError)?;
+    
+    state.total_debt_amount = state.total_debt_amount
+        .saturating_sub(debt_to_redistribute);
+    
+    msg!("  New L_debt: {}", total_collateral.l_debt);
+    msg!("  New L_collateral: {}", total_collateral.l_collateral);
+    msg!("Redistribution complete - gains will be applied to troves on next operation");
     
     Ok(())
 }

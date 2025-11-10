@@ -185,18 +185,61 @@ pub fn handler(ctx: Context<LiquidateTrove>, params: LiquidateTroveParams) -> Re
         msg!("Initialized new StabilityPoolSnapshot for {}", params.collateral_denom);
     }
 
-    // Distribute liquidation gains to stakers using Product-Sum algorithm
-    // This updates:
-    // - P factor (pool depletion tracking)
-    // - total_stake_amount (reduced by debt_amount)
-    // - S factors (collateral rewards per denomination)
-    // - StabilityPoolSnapshot account
-    distribute_liquidation_gains_to_stakers(
-        &mut ctx.accounts.state,
-        &collateral_amounts,
-        debt_amount,
-        &mut ctx.accounts.stability_pool_snapshot,
-    )?;
+    // HYBRID LIQUIDATION PATH: Stability pool primary, redistribution fallback
+    let total_stake = ctx.accounts.state.total_stake_amount;
+    
+    if total_stake >= debt_amount {
+        // PATH 1: Stability pool has sufficient funds
+        // Distribute liquidation gains to stakers using Product-Sum algorithm
+        msg!("Using stability pool liquidation path (sufficient funds)");
+        distribute_liquidation_gains_to_stakers(
+            &mut ctx.accounts.state,
+            &collateral_amounts,
+            debt_amount,
+            &mut ctx.accounts.stability_pool_snapshot,
+        )?;
+    } else if total_stake > 0 {
+        // PATH 2: Partial coverage - use stability pool for what it can cover, redistribute the rest
+        msg!("Using hybrid liquidation path (partial stability pool coverage)");
+        msg!("  Pool covers: {} of {} debt", total_stake, debt_amount);
+        
+        let covered_debt = total_stake;
+        let uncovered_debt = debt_amount.saturating_sub(total_stake);
+        
+        let covered_collateral = (collateral_amount as u128)
+            .checked_mul(covered_debt as u128)
+            .ok_or(AerospacerProtocolError::OverflowError)?
+            .checked_div(debt_amount as u128)
+            .ok_or(AerospacerProtocolError::DivideByZeroError)? as u64;
+        
+        let redistributed_collateral = collateral_amount.saturating_sub(covered_collateral);
+        
+        let covered_amounts = vec![(params.collateral_denom.clone(), covered_collateral)];
+        distribute_liquidation_gains_to_stakers(
+            &mut ctx.accounts.state,
+            &covered_amounts,
+            covered_debt,
+            &mut ctx.accounts.stability_pool_snapshot,
+        )?;
+        
+        use crate::trove_management::redistribute_debt_and_collateral;
+        redistribute_debt_and_collateral(
+            &mut ctx.accounts.total_collateral_amount,
+            &mut ctx.accounts.state,
+            uncovered_debt,
+            redistributed_collateral,
+        )?;
+    } else {
+        // PATH 3: Stability pool is empty - redistribute to all active troves
+        msg!("Using redistribution liquidation path (stability pool empty)");
+        use crate::trove_management::redistribute_debt_and_collateral;
+        redistribute_debt_and_collateral(
+            &mut ctx.accounts.total_collateral_amount,
+            &mut ctx.accounts.state,
+            debt_amount,
+            collateral_amount,
+        )?;
+    }
 
     msg!(
         "Single trove liquidated successfully: user={}, denom={}, debt={}, collateral={}",

@@ -35,11 +35,12 @@ impl StateAccount {
 #[account]
 pub struct UserDebtAmount {
     pub owner: Pubkey,
-    pub amount: u64, // Equivalent to Uint256
+    pub amount: u64,
+    pub l_debt_snapshot: u128,
 }
 
 impl UserDebtAmount {
-    pub const LEN: usize = 8 + 32 + 8;
+    pub const LEN: usize = 8 + 32 + 8 + 16;
     pub fn seeds(owner: &Pubkey) -> [&[u8]; 2] {
         [b"user_debt_amount", owner.as_ref()]
     }
@@ -50,11 +51,12 @@ impl UserDebtAmount {
 pub struct UserCollateralAmount {
     pub owner: Pubkey,
     pub denom: String,
-    pub amount: u64, // Equivalent to Uint256
+    pub amount: u64,
+    pub l_collateral_snapshot: u128,
 }
 
 impl UserCollateralAmount {
-    pub const LEN: usize = 8 + 32 + 32 + 8; // String length needs to be considered
+    pub const LEN: usize = 8 + 32 + 32 + 8 + 16;
     pub fn seeds<'a>(owner: &'a Pubkey, denom: &'a str) -> [&'a [u8]; 3] {
         [b"user_collateral_amount", owner.as_ref(), denom.as_bytes()]
     }
@@ -95,11 +97,13 @@ impl LiquidityThreshold {
 #[account]
 pub struct TotalCollateralAmount {
     pub denom: String,
-    pub amount: u64, // Equivalent to Uint256
+    pub amount: u64,
+    pub l_collateral: u128,
+    pub l_debt: u128,
 }
 
 impl TotalCollateralAmount {
-    pub const LEN: usize = 8 + 32 + 8; // String length needs to be considered
+    pub const LEN: usize = 8 + 32 + 8 + 16 + 16;
     pub fn seeds(denom: &str) -> [&[u8]; 2] {
         [b"total_collateral_amount", denom.as_bytes()]
     }

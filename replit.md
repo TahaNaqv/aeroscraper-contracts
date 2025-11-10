@@ -40,6 +40,20 @@ Then you can run:
 
 ## Recent Changes
 
+### November 10, 2025 - Production-Ready Redistribution Mechanism
+**Implemented Complete Hybrid Liquidation System:**
+- **Redistribution Path Added**: When stability pool is empty/insufficient, debt and collateral are redistributed to active troves (Liquity-style)
+- **Schema Updates**: Added L_debt, L_collateral tracking to TotalCollateralAmount; L_snapshot fields to user accounts
+- **Hybrid Liquidation**: liquidate_trove now supports 3 paths:
+  1. Full stability pool coverage (Product-Sum algorithm)
+  2. Partial coverage (hybrid: pool + redistribution)
+  3. Empty pool (full redistribution to active troves)
+- **Pending Rewards**: All trove operations (add/remove collateral, borrow/repay, close) now apply pending redistribution gains before state changes
+- **Status**: ⚠️ **NOT PRODUCTION-READY FOR EXISTING DEPLOYMENTS** - Schema changes require account migration
+  - Fresh deployments work correctly
+  - Existing on-chain accounts will fail deserialization (added 16-32 bytes per account)
+  - Migration required before deploying to networks with existing data
+
 ### November 9, 2025 - Liquidation Refactoring
 **Eliminated `remaining_accounts` Pattern from Liquidation Instructions:**
 - Replaced manual PDA validation with Anchor's `init_if_needed` pattern for `StabilityPoolSnapshot` accounts
@@ -47,7 +61,6 @@ Then you can run:
 - Simplified `distribute_liquidation_gains_to_stakers` function by removing PDA searching logic (~60 lines eliminated)
 - Auto-initialization: StabilityPoolSnapshot PDA is created automatically on first liquidation per collateral denomination
 - **Benefits**: Cleaner code, type-safe accounts, automatic rent handling, eliminates manual PDA validation
-- **Testing**: Code compiles successfully with `cargo check` - ready for integration testing
 
 ## User Preferences
 *This section will be updated as you work with the project*
