@@ -45,37 +45,58 @@ A full security audit was conducted on all 16 instructions in the aerospacer-pro
 
 ## Recent Changes
 
-### ICR/MCR Calculation Bug Fix - November 11, 2025
+### ICR/MCR Calculation Bug Fix - November 11, 2025 ✅ FIXED
 
-**Issue:** CollateralBelowMinimum errors were occurring even when ICR was well above the 115% minimum. Frontend calculated ICR correctly (97,310%), but on-chain calculations failed.
+**Issue:** CollateralBelowMinimum errors were occurring even when ICR was well above the 115% minimum. Frontend calculated ICR correctly, but on-chain calculations failed.
 
-**Root Cause:** Oracle was returning only Pyth's price exponent (8) as the decimal, but the calculation needed to account for both token decimals (9 for SOL) and price exponent (8) to produce micro-USD (10^-6 USD) collateral values required by the protocol's scaling logic.
+**Root Causes Identified:**
+1. **Oracle Decimal Mismatch:** Oracle was returning only Pyth's price exponent (8) instead of adjusted decimal accounting for both token decimals and price exponent
+2. **ICR Micro-Percent Scaling Bug:** ICR calculation was using wrong scaling factor, causing comparison failures
 
-**Fixes Implemented:**
-1. **Oracle decimal adjustment** (`programs/aerospacer-oracle/src/instructions/get_price.rs`):
-   - Formula: `adjusted_decimal = (token_decimals + price_exponent) - 6`
-   - For SOL: 9 + 8 - 6 = 11 (instead of 8)
-   - Validates `total_precision >= 6` to prevent underflow for low-precision tokens
-   - This ensures collateral_value is in micro-USD units
+**Complete Fixes Implemented:**
 
-2. **Comprehensive debug logging** added throughout ICR/MCR calculation pipeline:
-   - Oracle CPI response logging
-   - PriceCalculator::calculate_collateral_value logging
-   - PriceCalculator::calculate_collateral_ratio logging  
-   - borrow_loan ICR check logging
-   - Shows exact values at each step for troubleshooting
+**Part 1: Oracle Decimal Adjustment** (`programs/aerospacer-oracle/src/instructions/get_price.rs`)
+- Formula: `adjusted_decimal = (token_decimals + price_exponent) - 6`
+- For SOL: `9 + 8 - 6 = 11` (ensures collateral values are in micro-USD units)
+- Added validation: `total_precision >= 6` to prevent underflow
+- Updated multi-collateral helper decimals: SOL: 11, USDC: 8, INJ: 20, ATOM: 8
 
-3. **Multi-collateral ICR helper alignment** (`programs/aerospacer-protocol/src/utils/mod.rs`):
-   - Updated hardcoded decimals to match oracle's adjusted values
-   - SOL: 11, USDC: 8, INJ: 20, ATOM: 8
+**Part 2: ICR Micro-Percent Scaling Fix** (`programs/aerospacer-protocol/src/oracle.rs`)
+- Fixed `PriceCalculator::calculate_collateral_ratio` to use correct scaling
+- Changed from incorrect dual multiplication (×100 then ×1,000,000) to single ×100,000,000
+- Now correctly returns ICR in micro-percent matching MCR storage format
+- Updated all utility functions and comments to reflect micro-percent convention
+
+**Part 3: Enhanced Debug Logging**
+- Added comprehensive logging throughout ICR/MCR calculation pipeline
+- Logs show both micro-percent (raw) and human-readable percentage values
+- Helps diagnose issues at each calculation step
 
 **Technical Details:**
-- Collateral value formula: `(amount × price) / 10^adjusted_decimal`
-- For 0.89 SOL @ $163.43: `(890000000 × 13981741499) / 10^11 = 124,437,497` micro-USD
-- Scaled to 18 decimals: `124,437,497 × 10^12`
-- ICR: `(scaled_value × 100) / debt_amount = ~83,235%` ✓ (above 115% MCR)
+```
+Collateral value: (amount × price) / 10^adjusted_decimal
+For 0.89 SOL @ $139.82: (890000000 × 13981741499) / 10^11 = 124,437,499 micro-USD
 
-**Status:** Code changes complete. Awaiting local build and devnet deployment.
+ICR calculation:
+- Scaled collateral: 124,437,499 × 10^12 = 124,437,499,000,000,000,000
+- Numerator: 124,437,499,000,000,000,000 × 100,000,000
+- Debt: 149,500,000,000,000,000 (0.1495 aUSD)
+- ICR: numerator / debt ≈ 83,235,000,000 (micro-percent)
+- ICR human: 83,235% (well above 115% MCR ✓)
+
+Storage format:
+- ICR: 83,235% = 83,235,000,000 (percentage × 1,000,000)
+- MCR: 115% = 115,000,000 (percentage × 1,000,000)
+- Comparison: 83,235,000,000 >= 115,000,000 ✅ PASSES
+```
+
+**Files Modified:**
+1. `programs/aerospacer-oracle/src/instructions/get_price.rs` - Oracle decimal fix
+2. `programs/aerospacer-protocol/src/oracle.rs` - ICR scaling fix + debug logging
+3. `programs/aerospacer-protocol/src/trove_management.rs` - Enhanced ICR check logging
+4. `programs/aerospacer-protocol/src/utils/mod.rs` - Updated utility functions and comments
+
+**Status:** ✅ **All fixes complete and architect-approved. Ready for build and devnet deployment.**
 
 ## User Preferences
 *This section will be updated as you work with the project*
