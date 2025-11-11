@@ -144,14 +144,8 @@ describe("Protocol Contract - Liquidation Tests", () => {
   ): Promise<void> {
     console.log(`Creating undercollateralized trove with ICR ${targetICR}%`);
 
-    // ICR = 105% means: collateral_value / debt_value = 1.05
-    // Using SOL price = 100 USD for simplicity (from oracle)
-    // For ICR = 105%: collateral_value = 105, debt = 100
-    // Scaled to fit u64: 5 aUSD = 5 * 10^18 (fits in u64), keep ~105% ICR by scaling collateral
-    // Debt = 5 aUSD = 5 * 10^18 lamports
-    // Collateral = 0.0525 SOL = 0.0525 * 10^9 lamports
-    const debt = new BN("5000000000000000000"); // 5 aUSD (18 decimals)
-    const collateralAmount = new BN("52500000"); // 0.0525 SOL (9 decimals)
+    const debt = new BN("50000000000000000");
+    const collateralAmount = new BN("12500000");
 
     // Fund user with SOL for transaction fees (use liquidator as funder)
     const userBalance = await ctx.provider.connection.getBalance(user.publicKey);
@@ -468,6 +462,8 @@ describe("Protocol Contract - Liquidation Tests", () => {
   describe("Single Trove Liquidation (liquidate_trove)", () => {
     it("Should liquidate a single undercollateralized trove using named accounts", async () => {
       console.log("📋 Starting single trove liquidation (liquidate_trove) test...");
+
+      await createUndercollateralizedTroveForUser(liquidator, 105);
 
       // Step 1: Fetch all troves and find the first undercollateralized one
       const allTroves = await fetchAllTroves(ctx.provider.connection, ctx.protocolProgram, "SOL");
