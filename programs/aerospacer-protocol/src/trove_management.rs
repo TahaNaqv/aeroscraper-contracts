@@ -307,8 +307,10 @@ impl TroveManager {
         // Check minimum collateral ratio
         let minimum_ratio = trove_ctx.state.minimum_collateral_ratio as u64;
         msg!("📊 [borrow_loan] ICR Check:");
-        msg!("  new_icr: {}%", new_icr);
-        msg!("  minimum_ratio (MCR): {}%", minimum_ratio);
+        msg!("  new_icr (micro-percent): {}", new_icr);
+        msg!("  new_icr (human-readable): {}.{}%", new_icr / 1_000_000, (new_icr % 1_000_000) / 10_000);
+        msg!("  minimum_ratio (micro-percent): {}", minimum_ratio);
+        msg!("  minimum_ratio (human-readable): {}%", minimum_ratio / 1_000_000);
         
         if new_icr < minimum_ratio {
             msg!("❌ ICR {} < MCR {} → CollateralBelowMinimum", new_icr, minimum_ratio);

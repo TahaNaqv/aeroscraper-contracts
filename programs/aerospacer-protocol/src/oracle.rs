@@ -96,9 +96,9 @@ impl<'info> OracleContext<'info> {
 /// Price calculation utilities
 /// 
 /// ICR Convention:
-/// All ICR values are represented as simple percentages (not scaled).
-/// Example: 150% ICR = 150, 200% ICR = 200
-/// This avoids u64 overflow issues while maintaining sufficient precision
+/// All ICR values are represented in micro-percent (percentage × 1,000,000).
+/// Example: 150% ICR = 150_000_000, 832.35% ICR = 832_350_000
+/// This matches the MCR storage format (DEFAULT_MINIMUM_COLLATERAL_RATIO = 115_000_000)
 pub struct PriceCalculator;
 
 impl PriceCalculator {
@@ -136,9 +136,9 @@ impl PriceCalculator {
         Ok(value as u64)
     }
     
-    /// Calculate collateral ratio as a percentage (100 = 100%)
-    /// Returns ICR as an unscaled percentage for comparison
-    /// Example: 150% ICR = 150
+    /// Calculate collateral ratio in micro-percent (percentage × 1,000,000)
+    /// Returns ICR in micro-percent scale to match MCR storage format
+    /// Example: 150% ICR = 150_000_000, 832.35% ICR = 832_350_000
     /// 
     /// Note: Both collateral_value and debt_amount should be in the same units
     /// For proper ICR calculation, we need to normalize the units
@@ -166,24 +166,29 @@ impl PriceCalculator {
             .ok_or(AerospacerProtocolError::OverflowError)?;
         msg!("  scaled_collateral_value (×10^12): {}", scaled_collateral_value);
         
-        // Calculate ratio as percentage (multiply by 100)
+        // Calculate ICR in micro-percent
+        // ICR as ratio: collateral / debt (e.g., 832.35 meaning 832.35x collateralization)
+        // ICR as percentage: ratio × 100 (e.g., 83,235%)
+        // Micro-percent storage: percentage × 1_000_000 (e.g., 83,235,000,000)
+        // Combined scaling: × 100 × 1,000,000 = × 100_000_000
+        // Example: ratio 832.35 × 100_000_000 = 83,235,000,000 (83,235% in micro-percent)
         let numerator = scaled_collateral_value
-            .checked_mul(100)
+            .checked_mul(100_000_000)
             .ok_or(AerospacerProtocolError::OverflowError)?;
-        msg!("  numerator (×100): {}", numerator);
+        msg!("  numerator (scaled_collateral × 100_000_000): {}", numerator);
         
-        let ratio = numerator
+        let micro_percent_ratio = numerator
             .checked_div(debt_amount as u128)
             .ok_or(AerospacerProtocolError::OverflowError)?;
-        msg!("  ratio (percentage): {}", ratio);
+        msg!("  ICR in micro-percent: {}", micro_percent_ratio);
         
-        // Convert back to u64
-        let result = u64::try_from(ratio).map_err(|_| {
-            msg!("❌ Overflow converting ratio {} to u64", ratio);
+        // Convert to u64
+        let result = u64::try_from(micro_percent_ratio).map_err(|_| {
+            msg!("❌ Overflow converting ratio {} to u64", micro_percent_ratio);
             AerospacerProtocolError::OverflowError
         })?;
         
-        msg!("✅ Final ICR: {}%", result);
+        msg!("✅ Final ICR (micro-percent): {} (human: {}%)", result, result / 1_000_000);
         Ok(result)
     }
     

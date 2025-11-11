@@ -170,8 +170,8 @@ pub fn calculate_net_amount_after_fee(amount: u64, fee_percentage: u8) -> Result
 
 /// Calculate real ICR for a trove with multi-collateral support
 /// 
-/// Returns ICR as a simple percentage (not scaled)
-/// Example: 150% ICR = 150, 200% ICR = 200
+/// Returns ICR in micro-percent (percentage × 1,000,000)
+/// Example: 150% ICR = 150_000_000, 832.35% ICR = 832_350_000
 /// 
 /// This replaces the previous mock implementation
 pub fn get_trove_icr<'a>(
@@ -250,7 +250,7 @@ pub fn get_trove_icr<'a>(
 }
 
 /// Check if a trove's ICR meets the required minimum ratio
-/// ICR and minimum_ratio are both simple percentages (e.g., 150 = 150%)
+/// ICR and minimum_ratio are both in micro-percent (e.g., 150_000_000 = 150%)
 pub fn check_trove_icr_with_ratio(
     state_account: &StateAccount,
     icr: u64,
@@ -271,19 +271,18 @@ pub fn is_liquidatable_icr(icr: u64, liquidation_threshold: u64) -> bool {
 }
 
 /// Get the liquidation threshold (typically 110%)
-/// Returns as simple percentage: 110
+/// Returns in micro-percent: 110_000_000 = 110%
 pub fn get_liquidation_threshold() -> Result<u64> {
-    // 110% ICR is the liquidation threshold
-    Ok(110u64)
+    // 110% ICR is the liquidation threshold (in micro-percent)
+    Ok(110_000_000u64)
 }
 
 /// Check if ICR meets minimum collateral ratio requirement
-/// Both ICR and minimum_collateral_ratio are simple percentages
-pub fn check_minimum_icr(icr: u64, minimum_collateral_ratio: u8) -> Result<()> {
-    let minimum_ratio = minimum_collateral_ratio as u64;
-    
+/// ICR is in micro-percent (e.g., 150_000_000 = 150%)
+/// minimum_collateral_ratio is expected to be in micro-percent from StateAccount
+pub fn check_minimum_icr(icr: u64, minimum_collateral_ratio: u64) -> Result<()> {
     require!(
-        icr >= minimum_ratio,
+        icr >= minimum_collateral_ratio,
         AerospacerProtocolError::CollateralBelowMinimum
     );
     
