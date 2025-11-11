@@ -45,13 +45,14 @@ A full security audit was conducted on all 16 instructions in the aerospacer-pro
 
 ## Recent Changes
 
-### ICR/MCR Calculation Bug Fix - November 11, 2025 ✅ FIXED
+### ICR Calculation Overflow Fix - November 11, 2025 ✅ FIXED
 
-**Issue:** CollateralBelowMinimum errors were occurring even when ICR was well above the 115% minimum. Frontend calculated ICR correctly, but on-chain calculations failed.
+**Issue:** OverflowError (Error 6019) when borrowing, even with valid ICR well above minimum.
 
 **Root Causes Identified:**
 1. **Oracle Decimal Mismatch:** Oracle was returning only Pyth's price exponent (8) instead of adjusted decimal accounting for both token decimals and price exponent
 2. **ICR Micro-Percent Scaling Bug:** ICR calculation was using wrong scaling factor, causing comparison failures
+3. **Arithmetic Overflow:** Multiplying by 10^20 in calculate_collateral_ratio caused u128 overflow with large values
 
 **Complete Fixes Implemented:**
 
@@ -61,38 +62,50 @@ A full security audit was conducted on all 16 instructions in the aerospacer-pro
 - Added validation: `total_precision >= 6` to prevent underflow
 - Updated multi-collateral helper decimals: SOL: 11, USDC: 8, INJ: 20, ATOM: 8
 
-**Part 2: ICR Micro-Percent Scaling Fix** (`programs/aerospacer-protocol/src/oracle.rs`)
-- Fixed `PriceCalculator::calculate_collateral_ratio` to use correct scaling
-- Changed from incorrect dual multiplication (×100 then ×1,000,000) to single ×100,000,000
-- Now correctly returns ICR in micro-percent matching MCR storage format
-- Updated all utility functions and comments to reflect micro-percent convention
+**Part 2: Chunked Long-Division Algorithm** (`programs/aerospacer-protocol/src/oracle.rs`)
+- Implemented overflow-safe chunked long-division for ICR calculation
+- Computes `(collateral / debt) × 10^20` without forming the full 10^20 product
+- Uses staged scaling: ×10^6, ×10^6, ×10^6, ×10^2 (total ×10^20)
+- Each chunk divides by debt and carries remainder to prevent overflow
+- All intermediates stay within u128 bounds (max: 3.4×10^38)
+- Maintains 6+ decimal places of precision
 
 **Part 3: Enhanced Debug Logging**
 - Added comprehensive logging throughout ICR/MCR calculation pipeline
-- Logs show both micro-percent (raw) and human-readable percentage values
-- Helps diagnose issues at each calculation step
+- Logs show chunk-by-chunk calculation progress
+- Displays both micro-percent (raw) and human-readable percentage values
 
 **Technical Details:**
 ```
 Collateral value: (amount × price) / 10^adjusted_decimal
-For 0.89 SOL @ $139.82: (890000000 × 13981741499) / 10^11 = 124,437,499 micro-USD
+For 0.89 SOL @ $162.06: (890000000 × 16206000000) / 10^11 = 144,233,400 micro-USD
 
-ICR calculation:
-- Scaled collateral: 124,437,499 × 10^12 = 124,437,499,000,000,000,000
-- Numerator: 124,437,499,000,000,000,000 × 100,000,000
-- Debt: 149,500,000,000,000,000 (0.1495 aUSD)
-- ICR: numerator / debt ≈ 83,235,000,000 (micro-percent)
-- ICR human: 83,235% (well above 115% MCR ✓)
+Chunked Long-Division ICR Calculation:
+Debt: 104,809,267,778,871,350,000 (104.8 aUSD in 18 decimals)
+
+Chunk 1 (×10^6): quotient=0, remainder=144,233,400,000,000
+Chunk 2 (×10^6): quotient=1, remainder=39,424,132,221,128,650,000
+Chunk 3 (×10^6): quotient=1,376,151, remainder=21,336,838,412,826,150,000
+Chunk 4 (×10^2): quotient=137,615,120
+
+Final ICR: 137,615,120 (micro-percent)
+Human readable: 137.615% ✅ (well above 115% MCR)
 
 Storage format:
-- ICR: 83,235% = 83,235,000,000 (percentage × 1,000,000)
+- ICR: 137.615% = 137,615,120 (percentage × 1,000,000)
 - MCR: 115% = 115,000,000 (percentage × 1,000,000)
-- Comparison: 83,235,000,000 >= 115,000,000 ✅ PASSES
+- Comparison: 137,615,120 >= 115,000,000 ✅ PASSES
 ```
+
+**Overflow Safety:**
+- Max collateral (u64): 1.8×10^19
+- First chunk: 1.8×10^19 × 10^6 = 1.8×10^25 (fits in u128 ✅)
+- All subsequent operations stay within bounds
+- Overflow only occurs if final result exceeds u64 (desired failure mode)
 
 **Files Modified:**
 1. `programs/aerospacer-oracle/src/instructions/get_price.rs` - Oracle decimal fix
-2. `programs/aerospacer-protocol/src/oracle.rs` - ICR scaling fix + debug logging
+2. `programs/aerospacer-protocol/src/oracle.rs` - Chunked long-division overflow fix
 3. `programs/aerospacer-protocol/src/trove_management.rs` - Enhanced ICR check logging
 4. `programs/aerospacer-protocol/src/utils/mod.rs` - Updated utility functions and comments
 
