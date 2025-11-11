@@ -160,31 +160,62 @@ impl PriceCalculator {
         // Debt amount is in 18 decimals (aUSD has 18 decimals)
         // We need to scale them to the same precision: 10^(18-6) = 10^12
         
-        // Scale collateral value to match debt amount precision (18 decimals)
-        let scaled_collateral_value = (collateral_value as u128)
-            .checked_mul(1_000_000_000_000) // Scale up by 10^12 to match 18 decimals
-            .ok_or(AerospacerProtocolError::OverflowError)?;
-        msg!("  scaled_collateral_value (×10^12): {}", scaled_collateral_value);
+        // To avoid overflow while maintaining precision, we use chunked long-division
+        // Final formula: ICR = (collateral / debt) × 10^20
+        // Where 10^20 = 10^12 (decimal adjustment) × 10^8 (100 × 1_000_000 for micro-percent)
+        //
+        // Instead of multiplying by 10^20 all at once (which overflows), we:
+        // 1. Compute quotient and remainder: collateral / debt
+        // 2. Apply scaling in chunks: ×10^6, ×10^6, ×10^6, ×10^2 (total ×10^20)
+        // 3. After each chunk, divide by debt and carry the remainder
+        // This keeps all intermediates within u128 bounds
         
-        // Calculate ICR in micro-percent
-        // ICR as ratio: collateral / debt (e.g., 832.35 meaning 832.35x collateralization)
-        // ICR as percentage: ratio × 100 (e.g., 83,235%)
-        // Micro-percent storage: percentage × 1_000_000 (e.g., 83,235,000,000)
-        // Combined scaling: × 100 × 1,000,000 = × 100_000_000
-        // Example: ratio 832.35 × 100_000_000 = 83,235,000,000 (83,235% in micro-percent)
-        let numerator = scaled_collateral_value
-            .checked_mul(100_000_000)
-            .ok_or(AerospacerProtocolError::OverflowError)?;
-        msg!("  numerator (scaled_collateral × 100_000_000): {}", numerator);
+        let debt_128 = debt_amount as u128;
+        let mut quotient = collateral_value as u128;
+        let mut remainder = 0u128;
         
-        let micro_percent_ratio = numerator
-            .checked_div(debt_amount as u128)
+        // Chunk 1: ×10^6
+        remainder = quotient.checked_mul(1_000_000)
             .ok_or(AerospacerProtocolError::OverflowError)?;
-        msg!("  ICR in micro-percent: {}", micro_percent_ratio);
+        quotient = remainder / debt_128;
+        remainder = remainder % debt_128;
+        msg!("  After chunk 1 (×10^6): quotient={}, remainder={}", quotient, remainder);
+        
+        // Chunk 2: ×10^6
+        quotient = quotient.checked_mul(1_000_000)
+            .ok_or(AerospacerProtocolError::OverflowError)?;
+        remainder = remainder.checked_mul(1_000_000)
+            .ok_or(AerospacerProtocolError::OverflowError)?;
+        let temp = remainder / debt_128;
+        quotient = quotient.checked_add(temp)
+            .ok_or(AerospacerProtocolError::OverflowError)?;
+        remainder = remainder % debt_128;
+        msg!("  After chunk 2 (×10^6): quotient={}, remainder={}", quotient, remainder);
+        
+        // Chunk 3: ×10^6
+        quotient = quotient.checked_mul(1_000_000)
+            .ok_or(AerospacerProtocolError::OverflowError)?;
+        remainder = remainder.checked_mul(1_000_000)
+            .ok_or(AerospacerProtocolError::OverflowError)?;
+        let temp = remainder / debt_128;
+        quotient = quotient.checked_add(temp)
+            .ok_or(AerospacerProtocolError::OverflowError)?;
+        remainder = remainder % debt_128;
+        msg!("  After chunk 3 (×10^6): quotient={}, remainder={}", quotient, remainder);
+        
+        // Chunk 4: ×10^2 (final scaling to reach 10^20 total)
+        quotient = quotient.checked_mul(100)
+            .ok_or(AerospacerProtocolError::OverflowError)?;
+        remainder = remainder.checked_mul(100)
+            .ok_or(AerospacerProtocolError::OverflowError)?;
+        let temp = remainder / debt_128;
+        let icr_micro_percent = quotient.checked_add(temp)
+            .ok_or(AerospacerProtocolError::OverflowError)?;
+        msg!("  Final ICR (micro-percent): {}", icr_micro_percent);
         
         // Convert to u64
-        let result = u64::try_from(micro_percent_ratio).map_err(|_| {
-            msg!("❌ Overflow converting ratio {} to u64", micro_percent_ratio);
+        let result = u64::try_from(icr_micro_percent).map_err(|_| {
+            msg!("❌ Overflow converting ratio {} to u64", icr_micro_percent);
             AerospacerProtocolError::OverflowError
         })?;
         
