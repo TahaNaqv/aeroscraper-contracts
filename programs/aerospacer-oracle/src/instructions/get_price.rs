@@ -51,16 +51,16 @@ pub fn handler(ctx: Context<GetPrice>, params: GetPriceParams) -> Result<PriceRe
     require!(price.price > 0, AerospacerOracleError::InvalidPriceData);
     require!(price.conf >= 100, AerospacerOracleError::PythPriceValidationFailed); // Reduced from 1000 to 100 for devnet
     
+    let actual_decimal = (-price.expo) as u8;
+
     msg!("Price query successful");
     msg!("Denom: {}", params.denom);
     msg!("Decimal: {}", collateral_data.decimal);
+    msg!("Actual decimal: {}", actual_decimal);
     msg!("Publish Time: {}", price.publish_time);
     msg!("Price: {} ± {} x 10^{}", price.price, price.conf, price.expo);
     msg!("Real Pyth data extracted successfully using official SDK");
     
-    // Return price response with validated Pyth data
-    // Use the actual price exponent from Pyth instead of collateral decimal
-    let actual_decimal = (-price.expo) as u8; // Convert negative exponent to positive decimal places
     Ok(PriceResponse {
         denom: params.denom,
         price: price.price,
